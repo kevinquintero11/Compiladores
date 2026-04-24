@@ -2,11 +2,12 @@ program ejemplo;
 var
    x, y: integer;
    bandera: boolean;
-begin
+begin 
+   
    x := 10;
    y := x + 5 * 2;
    if x <> y then
-   beg
+   beging
       write(x);
    end;
    bandera := true;

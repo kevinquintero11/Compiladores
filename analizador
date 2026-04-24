@@ -125,11 +125,10 @@ def analizar(codigo_fuente):
 def principal():
     # Verifica que se pase un archivo como argumento
     if len(sys.argv) < 2:
-        print("Uso correcto: ./analizador <archivodeprueba.ext>")
+        print("Uso correcto: ./analizador <archivodeprueba.txt>")
         sys.exit(1)
     
     nombre_archivo = sys.argv[1]
-    
     try:
         # Abre el archivo en modo lectura
         with open(nombre_archivo, 'r', encoding='utf-8') as archivo:
@@ -143,18 +142,12 @@ def principal():
     
     # Muestra errores o tokens
     if errores:
-        print(f"Se encontraron {len(errores)} error(es) léxico(s):\n")
+        print(f"Se encontraron {len(errores)} error(es) léxico(s):")
         for caracter, linea, columna in errores:
             print(f"Error léxico: carácter '{caracter}' inesperado en (lin. {linea:03d}, col. {columna:03d})")
     else:
-        for token in tokens:
-            # Tokens con atributo (operadores)
-            if len(token) == 5:
-                tipo_token, lexema, linea, columna, atributo = token
-                print(f"(lin. {linea:03d}, col. {columna:03d}) {lexema} -> {tipo_token} ({atributo})")
-            else:
-                tipo_token, lexema, linea, columna = token
-                print(f"(lin. {linea:03d}, col. {columna:03d}) {lexema} -> {tipo_token}")
+        print(f"No se han encontrado errores en el análisis")
+
 
 if __name__ == '__main__':
     principal()
