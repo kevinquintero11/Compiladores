@@ -1,0 +1,10 @@
+Se encontraron 9 error(es) léxico(s):
+Error léxico: carácter '@' inesperado en (lin. 009, col. 016)
+Error léxico: carácter '$' inesperado en (lin. 012, col. 014)
+Error léxico: carácter '#' inesperado en (lin. 015, col. 014)
+Error léxico: carácter '!' inesperado en (lin. 018, col. 013)
+Error léxico: carácter '?' inesperado en (lin. 022, col. 019)
+Error léxico: carácter '%' inesperado en (lin. 025, col. 019)
+Error léxico: carácter '~' inesperado en (lin. 028, col. 013)
+Error léxico: carácter '&' inesperado en (lin. 031, col. 019)
+Error léxico: carácter '^' inesperado en (lin. 034, col. 015)

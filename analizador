@@ -140,13 +140,14 @@ def principal():
     # Ejecuta el análisis léxico
     tokens, errores = analizar(codigo_fuente)
     
-    # Muestra errores o tokens
-    if errores:
-        print(f"Se encontraron {len(errores)} error(es) léxico(s):")
-        for caracter, linea, columna in errores:
-            print(f"Error léxico: carácter '{caracter}' inesperado en (lin. {linea:03d}, col. {columna:03d})")
-    else:
-        print(f"No se han encontrado errores en el análisis")
+    # Muestra errores o tokens en archivo salida.txt
+    with open('salida.txt', 'w', encoding='utf-8') as archivo_salida:
+        if errores:
+            print(f"Se encontraron {len(errores)} error(es) léxico(s):", file=archivo_salida)
+            for caracter, linea, columna in errores:
+                print(f"Error léxico: carácter '{caracter}' inesperado en (lin. {linea:03d}, col. {columna:03d})", file=archivo_salida)
+        else:
+            print(f"No se han encontrado errores en el análisis", file=archivo_salida)
 
 
 if __name__ == '__main__':
