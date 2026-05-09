@@ -65,6 +65,7 @@ def analizar(codigo_fuente):
     
     numero_linea = 1      # Línea actual
     inicio_linea = 0      # Posición donde inicia la línea actual
+    reconocimientos = []  # Resultado completo en orden de aparición
     lista_tokens = []     # Almacena tokens válidos
     lista_errores = []    # Almacena errores léxicos
     
@@ -100,12 +101,14 @@ def analizar(codigo_fuente):
         if tipo_token == 'OPERADOR_MATEMATICO':
             atributo = MAPA_OPERADOR_MAT.get(lexema)
             lista_tokens.append((tipo_token, lexema, numero_linea, columna, atributo))
+            reconocimientos.append(('OK', tipo_token, lexema, numero_linea, columna, atributo))
             continue
         
         # Si es operador relacional, guardar con atributo
         if tipo_token == 'OPER_RELACIONAL':
             atributo = MAPA_OPERADOR_REL.get(lexema)
             lista_tokens.append((tipo_token, lexema, numero_linea, columna, atributo))
+            reconocimientos.append(('OK', tipo_token, lexema, numero_linea, columna, atributo))
             continue
         
         # Si es delimitador, mapear al token correspondiente
@@ -115,12 +118,50 @@ def analizar(codigo_fuente):
         # Si es carácter inválido, registrar error
         if tipo_token == 'ERROR':
             lista_errores.append((lexema, numero_linea, columna))
+            reconocimientos.append(('ERROR', None, lexema, numero_linea, columna, None))
             continue
         
         # Agregar token válido a la lista
         lista_tokens.append((tipo_token, lexema, numero_linea, columna))
+        reconocimientos.append(('OK', tipo_token, lexema, numero_linea, columna, None))
         
-    return lista_tokens, lista_errores
+    return reconocimientos, lista_tokens, lista_errores
+
+
+def escribir_salida(archivo_salida, reconocimientos, tokens, errores):
+    print("Reconocimiento total de tokens:", file=archivo_salida)
+
+    for estado, tipo_token, lexema, linea, columna, atributo in reconocimientos:
+        if estado == 'ERROR':
+            print(
+                f"[ERROR] carácter '{lexema}' inesperado en (lin. {linea:03d}, col. {columna:03d})",
+                file=archivo_salida,
+            )
+            continue
+
+        descripcion = (
+            f"[OK] {tipo_token:<20} lexema='{lexema}' "
+            f"(lin. {linea:03d}, col. {columna:03d})"
+        )
+        if atributo is not None:
+            descripcion += f" atributo={atributo}"
+        print(descripcion, file=archivo_salida)
+
+    print("", file=archivo_salida)
+    print("Resumen:", file=archivo_salida)
+    print(f"Tokens válidos: {len(tokens)}", file=archivo_salida)
+    print(f"Errores léxicos: {len(errores)}", file=archivo_salida)
+
+    if errores:
+        print("", file=archivo_salida)
+        print("Detalle de errores:", file=archivo_salida)
+        for caracter, linea, columna in errores:
+            print(
+                f"- carácter '{caracter}' inesperado en (lin. {linea:03d}, col. {columna:03d})",
+                file=archivo_salida,
+            )
+    else:
+        print("No se encontraron errores léxicos.", file=archivo_salida)
 
 def principal():
     # Verifica que se pase un archivo como argumento
@@ -138,16 +179,11 @@ def principal():
         sys.exit(1)
     
     # Ejecuta el análisis léxico
-    tokens, errores = analizar(codigo_fuente)
+    reconocimientos, tokens, errores = analizar(codigo_fuente)
     
-    # Muestra errores o tokens en archivo salida.txt
+    # Guarda el análisis completo en archivo salida.txt
     with open('salida.txt', 'w', encoding='utf-8') as archivo_salida:
-        if errores:
-            print(f"Se encontraron {len(errores)} error(es) léxico(s):", file=archivo_salida)
-            for caracter, linea, columna in errores:
-                print(f"Error léxico: carácter '{caracter}' inesperado en (lin. {linea:03d}, col. {columna:03d})", file=archivo_salida)
-        else:
-            print(f"No se han encontrado errores en el análisis", file=archivo_salida)
+        escribir_salida(archivo_salida, reconocimientos, tokens, errores)
 
 
 if __name__ == '__main__':
