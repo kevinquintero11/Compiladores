@@ -166,7 +166,7 @@ def escribir_salida(archivo_salida, reconocimientos, tokens, errores):
 def principal():
     # Verifica que se pase un archivo como argumento
     if len(sys.argv) < 2:
-        print("Uso correcto: ./analizador <archivodeprueba.txt>")
+        print("Uso correcto: ./analizadorLexico <archivodeprueba.txt>")
         sys.exit(1)
     
     nombre_archivo = sys.argv[1]
@@ -181,8 +181,8 @@ def principal():
     # Ejecuta el análisis léxico
     reconocimientos, tokens, errores = analizar(codigo_fuente)
     
-    # Guarda el análisis completo en archivo salida.txt
-    with open('salida.txt', 'w', encoding='utf-8') as archivo_salida:
+    # Guarda el análisis completo en archivo salidaLexico.txt
+    with open('salidaLexico.txt', 'w', encoding='utf-8') as archivo_salida:
         escribir_salida(archivo_salida, reconocimientos, tokens, errores)
 
 

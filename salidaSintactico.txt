@@ -1,0 +1,39 @@
+Archivo analizado: prueba_correcta.pas
+Ruta original: prueba_correcta.pas
+Resultado: Analisis sintactico correcto
+
+Diagnosticos:
+- No se detectaron errores.
+
+Codigo fuente:
+ 1 | program ejemplo;
+ 2 | 
+ 3 | var
+ 4 |     x, y: integer;
+ 5 |     b: boolean;
+ 6 | 
+ 7 | procedure imprimir(a: integer);
+ 8 | begin
+ 9 |     write(a)
+10 | end;
+11 | 
+12 | function suma(a: integer; c: integer): integer;
+13 | begin
+14 |     suma := a + c
+15 | end;
+16 | 
+17 | begin
+18 |     x := 10;
+19 |     y := suma(x, 20);
+20 |     if x < y then
+21 |     begin
+22 |         write(y)
+23 |     end
+24 |     else
+25 |     begin
+26 |         read(x)
+27 |     end;
+28 |     while x < y do
+29 |         x := x + 1
+30 | end.
+31 | 
