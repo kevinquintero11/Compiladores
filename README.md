@@ -4,15 +4,16 @@
 
 Este directorio contiene dos analizadores para un subconjunto de mini-Pascal:
 
-- `analizadorLexico`: reconoce lexemas, clasifica tokens y detecta errores lexicos.
-- `analizadorSintactico`: valida la gramatica del programa con un parser descendente recursivo predictivo.
+- `analizadorLexico`: wrapper ejecutable del analizador lexico.
+- `analizadorSintactico.py`: implementacion ejecutable e importable del analizador sintactico.
 
-El flujo pensado es el clasico de un compilador: primero analisis lexico y luego analisis sintactico. En la implementacion actual, `analizadorSintactico` llama internamente a `analizadorLexico`, por lo que no necesitas pasarle tokens manualmente.
+El flujo pensado es el clasico de un compilador: primero analisis lexico y luego analisis sintactico. En la implementacion actual, `analizadorSintactico.py` importa directamente la funcion `analizar` desde `analizadorLexico.py`, por lo que no necesitas pasarle tokens manualmente.
 
 ## Contenido del directorio
 
-- `analizadorLexico`: ejecutable del analizador lexico.
-- `analizadorSintactico`: ejecutable del analizador sintactico.
+- `analizadorLexico`: wrapper ejecutable del analizador lexico.
+- `analizadorLexico.py`: implementacion importable del analizador lexico.
+- `analizadorSintactico.py`: implementacion ejecutable e importable del analizador sintactico.
 - `prueba_correcta.pas`: programa lexica y sintacticamente valido.
 - `prueba_error.pas`: programa sin errores lexicos pero con varios errores sintacticos.
 - `prueba.txt`: ejemplo adicional que pasa por el lexico, pero falla sintacticamente.
@@ -32,7 +33,7 @@ El flujo pensado es el clasico de un compilador: primero analisis lexico y luego
 2. Usa expresiones regulares para reconocer numeros, identificadores, palabras reservadas, operadores, delimitadores y comentarios.
 3. Si encuentra simbolos invalidos, los reporta como errores lexicos.
 4. Si el archivo no tiene errores lexicos, el sintactico toma esos tokens y los convierte a su formato interno.
-5. `analizadorSintactico` aplica la gramatica LL(1) con descenso recursivo.
+5. `analizadorSintactico.py` aplica la gramatica LL(1) con descenso recursivo.
 6. Si encuentra errores sintacticos, intenta recuperarse para seguir analizando y reportar varias fallas en una sola corrida.
 7. Cada fase genera su propio archivo de salida.
 
@@ -84,12 +85,12 @@ El analizador lexico genera `salidaLexico.txt` con:
 
 ### Idea general
 
-`analizadorSintactico` implementa un analizador descendente recursivo predictivo para la gramatica del laboratorio. Su trabajo es verificar la estructura del programa, no los simbolos individuales.
+`analizadorSintactico.py` implementa un analizador descendente recursivo predictivo para la gramatica del laboratorio. Su trabajo es verificar la estructura del programa, no los simbolos individuales.
 
 Actualmente el sintactico:
 
 - lee el archivo fuente
-- llama internamente a `analizadorLexico`
+- importa directamente `analizar` desde `analizadorLexico.py`
 - detiene el proceso si el lexico detecta errores
 - convierte los tokens lexicos a su representacion interna
 - agrega el token `EOF`
@@ -101,13 +102,13 @@ Actualmente el sintactico:
 Desde este directorio:
 
 ```bash
-python3 analizadorSintactico archivodeprueba.pas
+python3 analizadorSintactico.py archivodeprueba.pas
 ```
 
 O bien:
 
 ```bash
-./analizadorSintactico archivodeprueba.pas
+./analizadorSintactico.py archivodeprueba.pas
 ```
 
 ### Comportamiento esperado
@@ -149,12 +150,12 @@ Ejemplo de marcado:
 La separacion de responsabilidades es esta:
 
 - `analizadorLexico` responde: "que tokens hay en el archivo y donde estan".
-- `analizadorSintactico` responde: "esos tokens forman un programa valido segun la gramatica".
+- `analizadorSintactico.py` responde: "esos tokens forman un programa valido segun la gramatica".
 
 Aunque puedes ejecutar ambos por separado, el sintactico ya integra al lexico internamente. En otras palabras:
 
 - si quieres estudiar tokens o errores lexicos, ejecuta `analizadorLexico`
-- si quieres validar la estructura del programa, ejecuta `analizadorSintactico`
+- si quieres validar la estructura del programa, ejecuta `analizadorSintactico.py`
 
 ## Archivos de prueba recomendados
 
@@ -179,8 +180,8 @@ Revision esperada:
 ### Analisis sintactico completo
 
 ```bash
-./analizadorSintactico prueba_correcta.pas
-./analizadorSintactico prueba_error.pas
+./analizadorSintactico.py prueba_correcta.pas
+./analizadorSintactico.py prueba_error.pas
 ```
 
 Revision esperada:
@@ -192,6 +193,6 @@ Revision esperada:
 ## Notas importantes
 
 - `salidaLexico.txt` se sobrescribe cada vez que se ejecuta `analizadorLexico`.
-- `salidaSintactico.txt` se sobrescribe cada vez que se ejecuta `analizadorSintactico`.
+- `salidaSintactico.txt` se sobrescribe cada vez que se ejecuta `analizadorSintactico.py`.
 - El sintactico no analiza semantica; solo estructura gramatical.
 - El sintactico intenta continuar despues de ciertos errores para reportar varias fallas, por lo que pueden aparecer errores en cascada cuando una falla temprana desacomoda el resto del analisis.
