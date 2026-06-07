@@ -1,39 +1,59 @@
 Archivo analizado: prueba_correcta.pas
 Ruta original: prueba_correcta.pas
-Resultado: Analisis sintactico correcto
+Resultado: Error sintactico en linea 40, columna 5: se esperaba end, se encontro else ('else')
 
 Diagnosticos:
-- No se detectaron errores.
+- Error sintactico en linea 40, columna 5: se esperaba end, se encontro else ('else')
 
 Codigo fuente:
- 1 | program ejemplo;
+ 1 | program  testCase1;
  2 | 
  3 | var
- 4 |     x, y: integer;
- 5 |     b: boolean;
- 6 | 
- 7 | procedure imprimir(a: integer);
- 8 | begin
- 9 |     write(a)
-10 | end;
-11 | 
-12 | function suma(a: integer; c: integer): integer;
-13 | begin
-14 |     suma := a + c
-15 | end;
-16 | 
-17 | begin
-18 |     x := 10;
-19 |     y := suma(x, 20);
-20 |     if x < y then
-21 |     begin
-22 |         write(y)
-23 |     end
-24 |     else
-25 |     begin
-26 |         read(x)
-27 |     end;
-28 |     while x < y do
-29 |         x := x + 1
-30 | end.
-31 | 
+ 4 |   a, b: integer;
+ 5 |  { result: integer;
+ 6 |   isValid: boolean;
+ 7 | }
+ 8 | procedure p1 (a,b:integer);
+ 9 | var p1a : integer ;
+10 | function f1 (a,b:integer):integer;
+11 | var p1a : integer ;
+12 | begin
+13 |    a:= 3 div 5
+14 | end ;
+15 | 
+16 | begin
+17 |    a:= 3 div 5
+18 | end ;
+19 | 
+20 | function f1 (a,b:integer):integer;
+21 | var p1a : integer ;
+22 | begin
+23 |    a:= 3 div 5
+24 | end ;
+25 | 
+26 | 
+27 | begin
+28 |   a := 5 > 3 and c-1;
+29 |   b := 10;
+30 |   result := a + b;
+31 |   isValid := true;
+32 |   p1(d,7);
+33 | 
+34 | while (counter < limit) do
+35 |   begin
+36 |     if (counter div 2 = 0) then
+37 |         begin
+38 |       isEven := true
+39 |     
+40 |     else
+   |     ^
+   |     Error sintactico en linea 40, columna 5: se esperaba end, se encontro else ('else')
+41 |       isEven := false;
+42 | 
+43 |     write(counter);
+44 |     counter := counter + 1
+45 |   end;
+46 |   
+47 |   write(result);
+48 | end.
+49 | 

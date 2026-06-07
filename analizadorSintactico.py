@@ -460,8 +460,6 @@ class Parser:
             )
 
     # <booleano> ::= true | false
-    # Produccion incluida por equivalencia con la gramatica,
-    # aunque hoy no esta conectada desde <factor>.
     def booleano(self) -> None:
         if self.check(TokenType.TRUE):
             self.match(TokenType.TRUE)
@@ -606,19 +604,19 @@ class Parser:
                 {TokenType.PUNTO_Y_COMA, TokenType.END, TokenType.ELSE, TokenType.THEN, TokenType.DO},
             )
 
-    # <comando_condicional> ::= if <expresion> then <comando_compuesto> <else_opcional>
+    # <comando_condicional> ::= if <expresion> then <comando> <else_opcional>
     def comando_condicional(self) -> None:
         self.match(TokenType.IF)
         self.expresion()
         self.match(TokenType.THEN, self.FIRST_COMANDO | {TokenType.BEGIN, TokenType.ELSE, TokenType.END})
-        self.comando_compuesto()
+        self.comando()
         self.else_opcional()
 
-    # <else_opcional> ::= else <comando_compuesto> | λ
+    # <else_opcional> ::= else <comando> | λ
     def else_opcional(self) -> None:
         if self.check(TokenType.ELSE):
             self.match(TokenType.ELSE)
-            self.comando_compuesto()
+            self.comando()
 
     # <comando_repetitivo> ::= while <expresion> do <comando>
     def comando_repetitivo(self) -> None:
@@ -699,6 +697,7 @@ class Parser:
 
     # <factor> ::= identificador <resto_factor>
     #            | numero
+    #            | booleano
     #            | ( <expresion> )
     #            | not <factor>
     def factor(self) -> None:
@@ -707,6 +706,8 @@ class Parser:
             self.resto_factor()
         elif self.check(TokenType.NUMERO):
             self.match(TokenType.NUMERO)
+        elif self.check(TokenType.TRUE) or self.check(TokenType.FALSE):
+            self.booleano()
         elif self.check(TokenType.PARENTESIS_ABRE):
             self.match(TokenType.PARENTESIS_ABRE)
             self.expresion()

@@ -1,30 +1,46 @@
-program ejemplo;
+program  testCase1;
 
 var
-    x, y: integer;
-    b: boolean;
-
-procedure imprimir(a: integer);
+  a, b: integer;
+ { result: integer;
+  isValid: boolean;
+}
+procedure p1 (a,b:integer);
+var p1a : integer ;
+function f1 (a,b:integer):integer;
+var p1a : integer ;
 begin
-    write(a)
-end;
-
-function suma(a: integer; c: integer): integer;
-begin
-    suma := a + c
-end;
+   a:= 3 div 5
+end ;
 
 begin
-    x := 10;
-    y := suma(x, 20);
-    if x < y then
-    begin
-        write(y)
-    end
+   a:= 3 div 5
+end ;
+
+function f1 (a,b:integer):integer;
+var p1a : integer ;
+begin
+   a:= 3 div 5
+end ;
+
+
+begin
+  a := 5 > 3 and c-1;
+  b := 10;
+  result := a + b;
+  isValid := true;
+  p1(d,7);
+
+while (counter < limit) do
+  begin
+    if (counter div 2 = 0) then
+      isEven := true
     else
-    begin
-        read(x)
-    end;
-    while x < y do
-        x := x + 1
+      isEven := false;
+
+    write(counter);
+    counter := counter + 1
+  end;
+  
+  write(result);
 end.
