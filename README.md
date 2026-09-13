@@ -1,11 +1,13 @@
-# Compiladores - Analizador Lexico y Sintactico para mini-Pascal
+# Compiladores - Analizadores para mini-Pascal
 
 ## Descripcion general
 
-Este directorio contiene dos analizadores para un subconjunto de mini-Pascal:
+Este directorio contiene analizadores para un subconjunto de mini-Pascal:
 
 - `analizadorLexico`: wrapper ejecutable del analizador lexico.
 - `analizadorSintactico.py`: implementacion ejecutable e importable del analizador sintactico.
+- `analizadorSemantico.py`: comprobacion de nombres, llamadas y tipos.
+- `tablaSimbolos.py`: tabla hash independiente para cada ambiente semantico.
 
 El flujo pensado es el clasico de un compilador: primero analisis lexico y luego analisis sintactico. En la implementacion actual, `analizadorSintactico.py` importa directamente la funcion `analizar` desde `analizadorLexico.py`, por lo que no necesitas pasarle tokens manualmente.
 
@@ -35,7 +37,8 @@ El flujo pensado es el clasico de un compilador: primero analisis lexico y luego
 4. Si el archivo no tiene errores lexicos, el sintactico toma esos tokens y los convierte a su formato interno.
 5. `analizadorSintactico.py` aplica la gramatica LL(1) con descenso recursivo.
 6. Si encuentra errores sintacticos, intenta recuperarse para seguir analizando y reportar varias fallas en una sola corrida.
-7. Cada fase genera su propio archivo de salida.
+7. Si la sintaxis es valida, construye la tabla de simbolos y ejecuta los controles semanticos.
+8. Cada fase genera su propio archivo de salida.
 
 ## Analizador lexico
 
@@ -113,10 +116,10 @@ O bien:
 
 ### Comportamiento esperado
 
-Si el archivo es correcto:
+Si el archivo es sintactica y semanticamente correcto:
 
 ```text
-Analisis sintactico correcto
+Analisis sintactico y semantico correcto
 ```
 
 Si el archivo tiene errores sintacticos, la salida en consola resume la corrida, por ejemplo:
@@ -134,6 +137,7 @@ El analizador sintactico genera `salidaSintactico.txt` con:
 - nombre del archivo analizado
 - resultado general del analisis
 - lista de diagnosticos sintacticos
+- lista de diagnosticos semanticos, si la sintaxis es valida
 - codigo fuente completo con numeracion de lineas
 - una marca `^` en la columna donde se detecta cada error
 
@@ -145,12 +149,39 @@ Ejemplo de marcado:
   |       Error sintactico en linea 4, columna 7: se esperaba :, se encontro identificador ('y')
 ```
 
-## Relacion entre ambos analizadores
+## Tabla de simbolos y semantica
+
+`TablaSimbolos` sigue el modelo clasico de ambientes enlazados: cada programa,
+procedimiento y funcion tiene un diccionario propio como tabla hash y una
+referencia `anterior` al ambiente exterior. Una busqueda comienza en la tabla
+actual y continua por esa cadena hasta llegar al ambiente global, implementando
+el alcance estatico de Pascal. Los identificadores se normalizan con `casefold`,
+por lo que no distinguen entre mayusculas y minusculas.
+
+Cada entrada es un diccionario que conserva nombre, categoria (programa,
+variable, parametro, procedimiento, funcion o resultado de funcion), tipo,
+ambito, posicion de declaracion y parametros ordenados. El analizador comprueba:
+
+- declaraciones duplicadas en un mismo ambiente
+- usos de identificadores no declarados
+- categorias validas para asignaciones, expresiones y llamadas
+- cantidad y tipos de argumentos
+- compatibilidad de asignaciones y operadores
+- condiciones booleanas en `if` y `while`
+- asignacion del resultado dentro de una funcion
+- existencia de al menos una asignacion al resultado de cada funcion
+
+El sombreado de identificadores de ambientes exteriores esta permitido. Las
+busquedas y declaraciones locales tienen costo promedio O(1); resolver un nombre
+externo cuesta O(d), donde d es la profundidad de anidamiento.
+
+## Relacion entre los analizadores
 
 La separacion de responsabilidades es esta:
 
 - `analizadorLexico` responde: "que tokens hay en el archivo y donde estan".
 - `analizadorSintactico.py` responde: "esos tokens forman un programa valido segun la gramatica".
+- `analizadorSemantico.py` responde: "los nombres y tipos se usan correctamente".
 
 Aunque puedes ejecutar ambos por separado, el sintactico ya integra al lexico internamente. En otras palabras:
 
@@ -194,5 +225,5 @@ Revision esperada:
 
 - `salidaLexico.txt` se sobrescribe cada vez que se ejecuta `analizadorLexico`.
 - `salidaSintactico.txt` se sobrescribe cada vez que se ejecuta `analizadorSintactico.py`.
-- El sintactico no analiza semantica; solo estructura gramatical.
+- La fase semantica solo se ejecuta si no hay errores sintacticos, para evitar diagnosticos en cascada.
 - El sintactico intenta continuar despues de ciertos errores para reportar varias fallas, por lo que pueden aparecer errores en cascada cuando una falla temprana desacomoda el resto del analisis.

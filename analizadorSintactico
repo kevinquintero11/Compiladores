@@ -1,5 +1,8 @@
+#!/usr/bin/env python3
+import sys
+
 from analizadorSintactico import main
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

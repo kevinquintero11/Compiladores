@@ -2,30 +2,34 @@ program  testCase1;
 
 var
   a, b: integer;
- { result: integer;
+  result, c, d, counter, limit: integer;
   isValid: boolean;
-}
+  isEven: boolean;
 procedure p1 (a,b:integer);
 var p1a : integer ;
 function f1 (a,b:integer):integer;
 var p1a : integer ;
 begin
-   a:= 3 div 5
+   f1 := 3 div 5
 end ;
 
 begin
-   a:= 3 div 5
+   p1a := 3 div 5
 end ;
 
 function f1 (a,b:integer):integer;
 var p1a : integer ;
 begin
-   a:= 3 div 5
+   f1 := 3 div 5
 end ;
 
 
 begin
-  a := 5 > 3 and c-1;
+  c := 2;
+  d := 4;
+  counter := 0;
+  limit := 10;
+  isValid := (5 > 3) and (c > 1);
   b := 10;
   result := a + b;
   isValid := true;

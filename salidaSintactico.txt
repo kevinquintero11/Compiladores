@@ -1,59 +1,66 @@
-Archivo analizado: prueba_correcta.pas
-Ruta original: prueba_correcta.pas
-Resultado: Error sintactico en linea 40, columna 5: se esperaba end, se encontro else ('else')
+Archivo analizado: prueba_semantica_error.pas
+Ruta original: prueba_semantica_error.pas
+Resultado: Se detectaron 10 errores semanticos
 
 Diagnosticos:
-- Error sintactico en linea 40, columna 5: se esperaba end, se encontro else ('else')
+- Error semantico en linea 5, columna 3: identificador 'Numero' ya declarado en este ambito (linea 4, columna 3)
+- Error semantico en linea 13, columna 10: la funcion 'duplicar' no asigna su resultado
+- Error semantico en linea 19, columna 3: identificador 'desconocida' no declarado
+- Error semantico en linea 20, columna 3: la asignacion requiere tipos iguales
+- Error semantico en linea 21, columna 3: la asignacion requiere tipos iguales
+- Error semantico en linea 22, columna 6: if requiere una condicion boolean
+- Error semantico en linea 24, columna 3: 'mostrar' espera 2 argumento(s), se recibieron 1
+- Error semantico en linea 25, columna 11: el argumento 1 de 'mostrar' debe ser integer
+- Error semantico en linea 26, columna 3: 'duplicar' no es un procedimiento
+- Error semantico en linea 27, columna 13: 'mostrar' no es un funcion
 
 Codigo fuente:
- 1 | program  testCase1;
+ 1 | program pruebaErrores;
  2 | 
  3 | var
- 4 |   a, b: integer;
- 5 |  { result: integer;
- 6 |   isValid: boolean;
- 7 | }
- 8 | procedure p1 (a,b:integer);
- 9 | var p1a : integer ;
-10 | function f1 (a,b:integer):integer;
-11 | var p1a : integer ;
-12 | begin
-13 |    a:= 3 div 5
-14 | end ;
-15 | 
-16 | begin
-17 |    a:= 3 div 5
-18 | end ;
-19 | 
-20 | function f1 (a,b:integer):integer;
-21 | var p1a : integer ;
-22 | begin
-23 |    a:= 3 div 5
-24 | end ;
-25 | 
-26 | 
-27 | begin
-28 |   a := 5 > 3 and c-1;
-29 |   b := 10;
-30 |   result := a + b;
-31 |   isValid := true;
-32 |   p1(d,7);
-33 | 
-34 | while (counter < limit) do
-35 |   begin
-36 |     if (counter div 2 = 0) then
-37 |         begin
-38 |       isEven := true
-39 |     
-40 |     else
-   |     ^
-   |     Error sintactico en linea 40, columna 5: se esperaba end, se encontro else ('else')
-41 |       isEven := false;
-42 | 
-43 |     write(counter);
-44 |     counter := counter + 1
-45 |   end;
-46 |   
-47 |   write(result);
-48 | end.
-49 | 
+ 4 |   numero: integer;
+ 5 |   Numero: boolean;
+   |   ^
+   |   Error semantico en linea 5, columna 3: identificador 'Numero' ya declarado en este ambito (linea 4, columna 3)
+ 6 |   bandera: boolean;
+ 7 | 
+ 8 | procedure mostrar(valor: integer; activo: boolean);
+ 9 | begin
+10 |   write(valor)
+11 | end;
+12 | 
+13 | function duplicar(n: integer): integer;
+   |          ^
+   |          Error semantico en linea 13, columna 10: la funcion 'duplicar' no asigna su resultado
+14 | begin
+15 |   n := n + 1
+16 | end;
+17 | 
+18 | begin
+19 |   desconocida := 10;
+   |   ^
+   |   Error semantico en linea 19, columna 3: identificador 'desconocida' no declarado
+20 |   numero := true;
+   |   ^
+   |   Error semantico en linea 20, columna 3: la asignacion requiere tipos iguales
+21 |   bandera := numero + 5;
+   |   ^
+   |   Error semantico en linea 21, columna 3: la asignacion requiere tipos iguales
+22 |   if numero then
+   |      ^
+   |      Error semantico en linea 22, columna 6: if requiere una condicion boolean
+23 |     numero := 1;
+24 |   mostrar(numero);
+   |   ^
+   |   Error semantico en linea 24, columna 3: 'mostrar' espera 2 argumento(s), se recibieron 1
+25 |   mostrar(true, false);
+   |           ^
+   |           Error semantico en linea 25, columna 11: el argumento 1 de 'mostrar' debe ser integer
+26 |   duplicar(numero);
+   |   ^
+   |   Error semantico en linea 26, columna 3: 'duplicar' no es un procedimiento
+27 |   numero := mostrar(numero, true)
+   |             ^
+   |             Error semantico en linea 27, columna 13: 'mostrar' no es un funcion
+28 | end.
+29 | 

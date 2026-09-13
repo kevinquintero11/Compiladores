@@ -26,6 +26,11 @@ from enum import Enum, auto
 from pathlib import Path
 
 from analizadorLexico import analizar as analizar_lexico
+from tablaSimbolos import TablaSimbolos
+
+# Evita cargar una segunda copia al ejecutar este archivo como programa.
+if __name__ == "__main__":
+    sys.modules.setdefault("analizadorSintactico", sys.modules[__name__])
 
 
 class TokenType(Enum):
@@ -153,6 +158,7 @@ class ResultadoAnalisis:
     ok: bool
     mensaje: str
     diagnostics: list[DiagnosticoError]
+    tabla_simbolos: TablaSimbolos | None = None
 
 
 class SyntaxErrorParser(Exception):
@@ -653,6 +659,8 @@ class Parser:
 
     # <lista_expresiones> ::= <expresion> <lista_expresiones_aux>
     def lista_expresiones(self) -> None:
+        if self.check(TokenType.PARENTESIS_CIERRA):
+            return
         self.expresion()
         self.lista_expresiones_aux()
 
@@ -885,10 +893,12 @@ def generar_reporte(resultado: ResultadoAnalisis) -> str:
 
 
 
-def construir_mensaje_sintactico(diagnostics: list[DiagnosticoError]) -> str:
+def construir_mensaje_errores(diagnostics: list[DiagnosticoError]) -> str:
     if len(diagnostics) == 1:
         return diagnostics[0].mensaje
-    return f"Se detectaron {len(diagnostics)} errores sintacticos"
+    tipos = {diagnostic.tipo for diagnostic in diagnostics}
+    tipo = tipos.pop() if len(tipos) == 1 else "de analisis"
+    return f"Se detectaron {len(diagnostics)} errores {tipo}s"
 
 
 
@@ -919,11 +929,32 @@ def analizar_archivo(path: Path) -> ResultadoAnalisis:
             path,
             source,
             False,
-            construir_mensaje_sintactico(diagnostics),
+            construir_mensaje_errores(diagnostics),
             diagnostics,
         )
 
-    return ResultadoAnalisis(path, source, True, "Analisis sintactico correcto", [])
+    # La semantica se ejecuta solo sobre una secuencia sintacticamente valida.
+    from analizadorSemantico import analizar_semantica
+
+    resultado_semantico = analizar_semantica(tokens)
+    if resultado_semantico.diagnostics:
+        return ResultadoAnalisis(
+            path,
+            source,
+            False,
+            construir_mensaje_errores(resultado_semantico.diagnostics),
+            resultado_semantico.diagnostics,
+            resultado_semantico.tabla_global,
+        )
+
+    return ResultadoAnalisis(
+        path,
+        source,
+        True,
+        "Analisis sintactico y semantico correcto",
+        [],
+        resultado_semantico.tabla_global,
+    )
 
 
 
