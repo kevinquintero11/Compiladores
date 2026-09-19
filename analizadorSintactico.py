@@ -474,30 +474,24 @@ class Parser:
         else:
             self.error("booleano: true o false", self.TOKENS_FIN_EXPRESION)
 
-    # <parte_declaraciones_subrutinas> ::= <lista_procedimientos> <lista_funciones>
+    # <parte_declaraciones_subrutinas> ::= <declaracion_procedimiento> ;
+    #                                      <parte_declaraciones_subrutinas>
+    #                                    | <declaracion_funcion> ;
+    #                                      <parte_declaraciones_subrutinas>
+    #                                    | λ
     def parte_declaraciones_subrutinas(self) -> None:
-        self.lista_procedimientos()
-        self.lista_funciones()
-
-    # <lista_procedimientos> ::= <declaracion_procedimiento> ; <lista_procedimientos> | λ
-    def lista_procedimientos(self) -> None:
         if self.check(TokenType.PROCEDURE):
             self.declaracion_procedimiento()
-            self.match(
-                TokenType.PUNTO_Y_COMA,
-                {TokenType.PROCEDURE, TokenType.FUNCTION, TokenType.BEGIN, TokenType.EOF},
-            )
-            self.lista_procedimientos()
-
-    # <lista_funciones> ::= <declaracion_funcion> ; <lista_funciones> | λ
-    def lista_funciones(self) -> None:
-        if self.check(TokenType.FUNCTION):
+        elif self.check(TokenType.FUNCTION):
             self.declaracion_funcion()
-            self.match(
-                TokenType.PUNTO_Y_COMA,
-                {TokenType.FUNCTION, TokenType.BEGIN, TokenType.EOF},
-            )
-            self.lista_funciones()
+        else:
+            return
+
+        self.match(
+            TokenType.PUNTO_Y_COMA,
+            {TokenType.PROCEDURE, TokenType.FUNCTION, TokenType.BEGIN, TokenType.EOF},
+        )
+        self.parte_declaraciones_subrutinas()
 
     # <declaracion_procedimiento> ::= procedure identificador <parametros_opcionales> ; <bloque>
     def declaracion_procedimiento(self) -> None:

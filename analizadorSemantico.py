@@ -71,13 +71,16 @@ class AnalizadorSemantico:
                     break
                 self.declaracion_variables()
 
-        while self.actual.tipo == TokenType.PROCEDURE:
-            self.declaracion_rutina(False)
-            self.consumir(TokenType.PUNTO_Y_COMA)
-        while self.actual.tipo == TokenType.FUNCTION:
-            self.declaracion_rutina(True)
-            self.consumir(TokenType.PUNTO_Y_COMA)
+        self.declaraciones_rutinas()
         self.comando_compuesto()
+
+    def declaraciones_rutinas(self) -> None:
+        if self.actual.tipo not in {TokenType.PROCEDURE, TokenType.FUNCTION}:
+            return
+
+        self.declaracion_rutina(self.actual.tipo == TokenType.FUNCTION)
+        self.consumir(TokenType.PUNTO_Y_COMA)
+        self.declaraciones_rutinas()
 
     def declaracion_variables(self) -> None:
         nombres = self.lista_identificadores()
