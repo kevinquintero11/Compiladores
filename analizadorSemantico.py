@@ -203,13 +203,11 @@ class AnalizadorSemantico:
             if not lectura:
                 self.consumir(TokenType.WRITE)
             self.consumir(TokenType.PARENTESIS_ABRE)
-            nombre = self.consumir(TokenType.IDENTIFICADOR)
             if lectura:
+                nombre = self.consumir(TokenType.IDENTIFICADOR)
                 self.tipo_destino(nombre)
             else:
-                simbolo = self.resolver(nombre)
-                if simbolo is not None and simbolo["categoria"] not in {VARIABLE, PARAMETRO}:
-                    self.error(nombre, f"'{nombre.lexema}' no es un valor que pueda escribirse")
+                self.expresion()
             self.consumir(TokenType.PARENTESIS_CIERRA)
 
     def expresion(self) -> str:

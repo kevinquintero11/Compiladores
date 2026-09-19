@@ -625,7 +625,7 @@ class Parser:
         self.match(TokenType.DO, self.FIRST_COMANDO | {TokenType.BEGIN, TokenType.END, TokenType.ELSE})
         self.comando()
 
-    # <comando_entrada_salida> ::= read ( identificador ) | write ( identificador )
+    # <comando_entrada_salida> ::= read ( identificador ) | write ( <expresion> )
     def comando_entrada_salida(self) -> None:
         if self.check(TokenType.READ):
             self.match(TokenType.READ)
@@ -635,7 +635,7 @@ class Parser:
         elif self.check(TokenType.WRITE):
             self.match(TokenType.WRITE)
             self.match(TokenType.PARENTESIS_ABRE)
-            self.match(TokenType.IDENTIFICADOR)
+            self.expresion()
             self.match(TokenType.PARENTESIS_CIERRA, {TokenType.PUNTO_Y_COMA, TokenType.END, TokenType.ELSE})
         else:
             self.error("read o write", {TokenType.PUNTO_Y_COMA, TokenType.END, TokenType.ELSE})
