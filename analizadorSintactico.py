@@ -209,6 +209,7 @@ OPERADORES_MATEMATICOS_LEXICOS = {
     "SUMA": TokenType.MAS,
     "RESTA": TokenType.MENOS,
     "MULTIPLICACION": TokenType.POR,
+    "DIVISION": TokenType.DIV,
 }
 
 

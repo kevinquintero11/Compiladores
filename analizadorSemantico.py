@@ -217,9 +217,12 @@ class AnalizadorSemantico:
             derecho = self.expresion_simple()
             if operador.tipo in {TokenType.IGUAL, TokenType.DISTINTO}:
                 self.comprobar_compatibles(izquierdo, derecho, operador, "los operandos deben tener el mismo tipo")
+                return BOOLEAN
             else:
-                self.requerir_operandos(izquierdo, derecho, INTEGER, operador)
-            return BOOLEAN
+                tipos_validos = self.requerir_operandos(
+                    izquierdo, derecho, INTEGER, operador,
+                )
+                return BOOLEAN if tipos_validos else DESCONOCIDO
         return izquierdo
 
     def expresion_simple(self) -> str:
@@ -234,8 +237,10 @@ class AnalizadorSemantico:
             operador = self.avanzar()
             derecho = self.termino()
             esperado = BOOLEAN if operador.tipo == TokenType.OR else INTEGER
-            self.requerir_operandos(resultado, derecho, esperado, operador)
-            resultado = esperado if DESCONOCIDO not in {resultado, derecho} else DESCONOCIDO
+            tipos_validos = self.requerir_operandos(
+                resultado, derecho, esperado, operador,
+            )
+            resultado = esperado if tipos_validos else DESCONOCIDO
         return resultado
 
     def termino(self) -> str:
@@ -244,8 +249,10 @@ class AnalizadorSemantico:
             operador = self.avanzar()
             derecho = self.factor()
             esperado = BOOLEAN if operador.tipo == TokenType.AND else INTEGER
-            self.requerir_operandos(resultado, derecho, esperado, operador)
-            resultado = esperado if DESCONOCIDO not in {resultado, derecho} else DESCONOCIDO
+            tipos_validos = self.requerir_operandos(
+                resultado, derecho, esperado, operador,
+            )
+            resultado = esperado if tipos_validos else DESCONOCIDO
         return resultado
 
     def factor(self) -> str:
@@ -259,10 +266,15 @@ class AnalizadorSemantico:
                 return DESCONOCIDO
             if simbolo["categoria"] == FUNCION and not simbolo["parametros"]:
                 return simbolo["tipo"]
+            if simbolo["categoria"] == RESULTADO_FUNCION:
+                self.error(
+                    nombre,
+                    f"la variable de retorno '{nombre.lexema}' no puede usarse en una expresion",
+                )
+                return DESCONOCIDO
             if simbolo["categoria"] not in {
                 VARIABLE,
                 PARAMETRO,
-                RESULTADO_FUNCION,
             }:
                 self.error(nombre, f"'{nombre.lexema}' no es una variable ni un parametro")
                 return DESCONOCIDO
@@ -349,6 +361,23 @@ class AnalizadorSemantico:
         return simbolo
 
     def declarar(self, token: Token, tipo: str, categoria: str, parametros=None) -> dict | None:
+        conflictos_con_programa = {
+            VARIABLE: "variable global",
+            PROCEDIMIENTO: "procedimiento",
+            FUNCION: "funcion",
+        }
+        if (
+            categoria in conflictos_con_programa
+            and self.ambiente_actual.anterior is self.tabla_global
+        ):
+            programa = self.tabla_global.buscar_local(token.lexema)
+            if programa is not None and programa["categoria"] == PROGRAMA:
+                self.error(
+                    token,
+                    "mismo identificador programa y "
+                    f"{conflictos_con_programa[categoria]}: '{token.lexema}'",
+                )
+
         try:
             return self.ambiente_actual.insertar(
                 token.lexema, tipo, categoria, token.columna, token.linea,
@@ -365,11 +394,13 @@ class AnalizadorSemantico:
 
     def requerir_operandos(
         self, izquierdo: str, derecho: str, esperado: str, operador: Token,
-    ) -> None:
+    ) -> bool:
         if DESCONOCIDO in {izquierdo, derecho}:
-            return
+            return False
         if izquierdo != esperado or derecho != esperado:
             self.error(operador, f"el operador '{operador.lexema}' requiere operandos {esperado}")
+            return False
+        return True
 
     def requerir_tipo(self, actual: str, esperado: str, token: Token, detalle: str) -> None:
         if actual not in {esperado, DESCONOCIDO}:
