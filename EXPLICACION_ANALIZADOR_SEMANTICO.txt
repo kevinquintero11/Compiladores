@@ -1,0 +1,727 @@
+===============================================================================
+GUIA DEL ANALIZADOR SEMANTICO DE MINI-PASCAL
+===============================================================================
+
+Esta guia explica que hace el analizador semantico, como recorre un programa y
+como se relacionan estos dos archivos:
+
+  - analizadorSemantico.py
+  - tablaSimbolos.py
+
+
+1. QUE ES EL ANALISIS SEMANTICO
+===============================================================================
+
+Un programa puede estar bien escrito segun la gramatica y aun asi no tener
+sentido. Por ejemplo:
+
+  var numero: integer;
+  begin
+    numero := true
+  end.
+
+La asignacion tiene la estructura correcta:
+
+  identificador := expresion
+
+Por eso el analizador sintactico la acepta. Sin embargo, la variable "numero"
+es integer y el valor "true" es boolean. El analizador semantico encuentra esa
+incompatibilidad.
+
+En este proyecto, el analizador semantico comprueba principalmente:
+
+  1. Que cada identificador haya sido declarado antes de usarse.
+  2. Que no existan declaraciones repetidas en el mismo ambiente.
+  3. Que una asignacion use tipos compatibles.
+  4. Que cada operador reciba operandos validos.
+  5. Que if y while reciban condiciones booleanas.
+  6. Que las llamadas usen la cantidad y los tipos correctos de argumentos.
+  7. Que un procedimiento se use como procedimiento.
+  8. Que una funcion se use como funcion.
+  9. Que toda funcion asigne su valor de retorno.
+
+IMPORTANTE: el analizador semantico no ejecuta el programa. Solamente estudia
+sus declaraciones y comprueba que los usos sean coherentes.
+
+
+2. ORDEN COMPLETO DE LOS ANALIZADORES
+===============================================================================
+
+El proceso completo es:
+
+  Codigo Pascal
+       |
+       v
+  Analizador lexico
+       |
+       | Produce tokens: PROGRAM, IDENTIFICADOR, INTEGER, BEGIN, etc.
+       v
+  Analizador sintactico
+       |
+       | Comprueba que los tokens respeten la gramatica.
+       v
+  Analizador semantico
+       |
+       | Comprueba declaraciones, ambientes, categorias y tipos.
+       v
+  Resultado final y tabla de simbolos
+
+La fase semantica solo comienza si la fase sintactica no encontro errores. Esto
+es importante porque analizadorSemantico.py supone que los tokens ya tienen el
+orden correcto. Por ejemplo, despues de PROGRAM espera obligatoriamente un
+IDENTIFICADOR y luego un PUNTO_Y_COMA.
+
+La llamada a la fase semantica se encuentra en analizar_archivo(), dentro de
+analizadorSintactico.py:
+
+  resultado_semantico = analizar_semantica(tokens)
+
+La funcion analizar_semantica() crea un AnalizadorSemantico y llama analizar():
+
+  return AnalizadorSemantico(tokens).analizar()
+
+
+3. IDEA GENERAL DEL RECORRIDO
+===============================================================================
+
+El proyecto no construye un arbol sintactico (AST). En su lugar, el analizador
+semantico vuelve a recorrer la lista de tokens que ya valido el sintactico.
+
+Supongamos esta entrada:
+
+  program ejemplo;
+  var numero: integer;
+  begin
+    numero := 10
+  end.
+
+La lista recibida se parece conceptualmente a esto:
+
+  PROGRAM
+  IDENTIFICADOR("ejemplo")
+  PUNTO_Y_COMA
+  VAR
+  IDENTIFICADOR("numero")
+  DOS_PUNTOS
+  INTEGER
+  PUNTO_Y_COMA
+  BEGIN
+  IDENTIFICADOR("numero")
+  ASIGNACION
+  NUMERO("10")
+  END
+  PUNTO
+  EOF
+
+El atributo current guarda la posicion actual dentro de esa lista. Hay cuatro
+operaciones basicas para mover el cursor:
+
+  actual
+    Devuelve el token actual sin mover el cursor.
+
+  avanzar()
+    Devuelve el token actual y mueve el cursor una posicion.
+
+  aceptar(tipo)
+    Si el token actual tiene ese tipo, lo consume y devuelve True. Si no
+    coincide, no mueve el cursor y devuelve False. Se usa para elementos
+    opcionales.
+
+  consumir(tipo)
+    Exige que el token actual tenga ese tipo y lo consume. Si no coincide, lanza
+    AssertionError porque la sintaxis ya deberia haber sido validada.
+
+
+4. TIPOS Y CATEGORIAS NO SON LO MISMO
+===============================================================================
+
+El analizador usa cuatro tipos internos:
+
+  INTEGER      Valor entero.
+  BOOLEAN      Valor verdadero o falso.
+  VOID         No devuelve un valor. Se usa en programas y procedimientos.
+  DESCONOCIDO  No es un tipo de Pascal. Indica que ya ocurrio un error y no se
+               pudo determinar el tipo de una expresion.
+
+Tambien usa seis categorias de simbolos:
+
+  PROGRAMA           Nombre principal del programa.
+  VARIABLE           Variable declarada con var.
+  PARAMETRO          Parametro de una funcion o procedimiento.
+  PROCEDIMIENTO      Rutina que no devuelve un valor.
+  FUNCION            Rutina que devuelve un valor.
+  RESULTADO_FUNCION  Variable especial usada para devolver el resultado.
+
+Ejemplos:
+
+  numero: integer
+
+  tipo       = integer
+  categoria  = variable
+
+  procedure mostrar(valor: integer)
+
+  tipo       = void
+  categoria  = procedimiento
+
+  function duplicar(n: integer): integer
+
+  tipo       = integer
+  categoria  = funcion
+
+Conocer solamente el tipo no es suficiente. Una funcion puede tener tipo
+integer, pero no puede aparecer a la izquierda de una asignacion. Tambien es
+necesario revisar su categoria.
+
+
+5. LA TABLA DE SIMBOLOS
+===============================================================================
+
+La tabla de simbolos recuerda todo lo que fue declarado. Cada entrada es un
+diccionario parecido a este:
+
+  {
+      "nombre": "numero",
+      "tipo": "integer",
+      "categoria": "variable",
+      "ambito": "global.ejemplo",
+      "linea": 2,
+      "columna": 5,
+      "parametros": [],
+      "nombre_original_funcion": None,
+      "resultado_asignado": False,
+      "ambito_local": None,
+  }
+
+Los campos significan:
+
+  nombre
+    Escritura original del identificador.
+
+  tipo
+    integer, boolean o void.
+
+  categoria
+    programa, variable, parametro, procedimiento, funcion o resultado_funcion.
+
+  ambito
+    Lugar del programa donde se declaro.
+
+  linea y columna
+    Posicion de la declaracion. Se usan para explicar errores duplicados.
+
+  parametros
+    Lista ordenada de parametros de una funcion o procedimiento.
+
+  resultado_asignado
+    En una funcion indica si aparecio una asignacion como "funcion := valor".
+
+  ambiente_local
+    Enlace a la tabla que contiene el cuerpo del programa o de la rutina.
+
+
+6. AMBIENTES Y ALCANCE
+===============================================================================
+
+No existe una sola tabla para todo el programa. Cada programa, procedimiento y
+funcion tiene su propio ambiente. Los ambientes forman un arbol.
+
+Para una estructura como esta:
+
+  program demo;
+  var global: integer;
+
+  procedure calcular(valor: integer);
+  var local: boolean;
+  begin
+    ...
+  end;
+
+  begin
+    ...
+  end.
+
+El arbol conceptual es:
+
+  global
+    |
+    +-- global.demo
+          |
+          +-- global.demo.calcular
+
+Contenido aproximado:
+
+  Ambiente global
+    demo      -> programa
+
+  Ambiente global.demo
+    global    -> variable integer
+    calcular  -> procedimiento
+
+  Ambiente global.demo.calcular
+    valor     -> parametro integer
+    local     -> variable boolean
+
+Cada TablaSimbolos tiene:
+
+  tabla
+    Diccionario con sus propios nombres.
+
+  anterior
+    Enlace al ambiente exterior.
+
+  hijos
+    Lista de ambientes interiores.
+
+Cuando buscar("global") se ejecuta dentro de calcular, ocurre esto:
+
+  1. Busca en global.demo.calcular. No lo encuentra.
+  2. Sigue el enlace anterior hasta global.demo.
+  3. Encuentra la variable global y la devuelve.
+
+Esta regla se llama alcance estatico.
+
+Los identificadores se normalizan con casefold(). Por eso "numero", "Numero" y
+"NUMERO" representan la misma clave. Pascal no distingue mayusculas y
+minusculas.
+
+
+7. COMO COMIENZA analizar()
+===============================================================================
+
+El metodo analizar() procesa la estructura principal:
+
+  program nombre;
+  bloque
+  .
+
+Sus pasos son:
+
+  1. Consume PROGRAM.
+  2. Consume el nombre del programa.
+  3. Declara ese nombre con categoria PROGRAMA y tipo VOID.
+  4. Consume el punto y coma.
+  5. Abre un ambiente para el contenido del programa.
+  6. Analiza el bloque.
+  7. Cierra el ambiente.
+  8. Consume el punto final.
+  9. Devuelve diagnosticos y tabla global.
+
+En "program ejemplo;", el simbolo ejemplo queda en el ambiente global. Las
+variables y rutinas de ejemplo se guardan en el ambiente global.ejemplo.
+
+
+8. COMO SE ANALIZA UN BLOQUE
+===============================================================================
+
+bloque() procesa tres secciones en este orden:
+
+  1. Variables opcionales.
+  2. Funciones y procedimientos opcionales.
+  3. Comando compuesto begin/end obligatorio.
+
+Para esta declaracion:
+
+  var
+    a, b: integer;
+    activo: boolean;
+
+declaracion_variables() realiza lo siguiente:
+
+  1. lista_identificadores() obtiene a y b.
+  2. tipo() convierte INTEGER a la cadena "integer".
+  3. declarar() inserta a como variable integer.
+  4. declarar() inserta b como variable integer.
+  5. Repite el proceso para activo y boolean.
+
+declarar() llama TablaSimbolos.insertar(). Si el nombre ya existe localmente,
+insertar() lanza SimboloDuplicadoError. declarar() transforma esa excepcion en
+un diagnostico y continua el analisis.
+
+
+9. PROCEDIMIENTOS Y FUNCIONES
+===============================================================================
+
+Para un procedimiento:
+
+  procedure mostrar(valor: integer; activo: boolean);
+
+se guarda en el ambiente exterior una entrada semejante a:
+
+  nombre: mostrar
+  tipo: void
+  categoria: procedimiento
+  parametros:
+    1. valor  -> integer
+    2. activo -> boolean
+
+Luego se abre el ambiente local de mostrar y alli se insertan valor y activo con
+categoria PARAMETRO.
+
+Para una funcion:
+
+  function duplicar(n: integer): integer;
+
+ocurren dos declaraciones diferentes:
+
+  Ambiente exterior:
+    duplicar -> FUNCION, tipo integer, parametro n
+
+  Ambiente interior de duplicar:
+    duplicar -> RESULTADO_FUNCION, tipo integer
+    n         -> PARAMETRO, tipo integer
+
+Pascal devuelve el resultado asignando al nombre de la funcion:
+
+  duplicar := n * 2
+
+Cuando tipo_destino() encuentra RESULTADO_FUNCION, cambia:
+
+  resultado_asignado = True
+
+Al terminar el cuerpo, declaracion_rutina() revisa esa marca. Si sigue en False,
+genera el error:
+
+  la funcion 'duplicar' no asigna su resultado
+
+
+10. COMO SE ANALIZA UN COMANDO
+===============================================================================
+
+comando() observa el token actual para decidir que clase de comando comienza.
+
+A) ASIGNACION
+
+  numero := 10
+
+Pasos:
+
+  1. Consume el identificador numero.
+  2. Encuentra :=.
+  3. expresion() calcula que 10 tiene tipo integer.
+  4. tipo_destino() busca numero y obtiene integer.
+  5. comprobar_compatibles() compara integer con integer.
+  6. Como coinciden, no genera errores.
+
+En cambio:
+
+  numero := true
+
+El destino es integer y la expresion es boolean. Se genera:
+
+  la asignacion requiere tipos iguales
+
+B) LLAMADA A PROCEDIMIENTO
+
+  mostrar(numero, true)
+
+Si despues del identificador no aparece :=, el comando se interpreta como una
+llamada a procedimiento. argumentos() calcula el tipo de cada argumento y
+comprobar_llamada() revisa la firma.
+
+C) IF
+
+  if condicion then comando else comando
+
+La expresion que sigue a if debe ser boolean.
+
+D) WHILE
+
+  while condicion do comando
+
+La expresion que sigue a while tambien debe ser boolean.
+
+E) READ
+
+  read(numero)
+
+tipo_destino() comprueba que numero sea una variable, un parametro o el
+resultado de una funcion. No se puede escribir sobre un programa o una rutina.
+
+F) WRITE
+
+  write(numero + 1)
+
+La expresion se analiza normalmente para comprobar sus nombres y operadores.
+
+
+11. COMO SE CALCULA EL TIPO DE UNA EXPRESION
+===============================================================================
+
+Los metodos reflejan la precedencia de operadores:
+
+  expresion()
+      Maneja =, <>, <, <=, > y >=.
+
+  expresion_simple()
+      Maneja signos unarios, +, - y or.
+
+  termino()
+      Maneja *, div y and.
+
+  factor()
+      Maneja identificadores, llamadas, numeros, true, false, parentesis y not.
+
+Ejemplo:
+
+  resultado := a + b * 2
+
+El recorrido conceptual es:
+
+  1. factor() obtiene el tipo de a: integer.
+  2. expresion_simple() encuentra +.
+  3. termino() analiza b * 2 antes de aplicar +.
+  4. b es integer y 2 es integer.
+  5. * recibe dos integer y produce integer.
+  6. + recibe a (integer) y b * 2 (integer).
+  7. + produce integer.
+  8. El destino resultado debe ser integer.
+
+Reglas de operadores:
+
+  +, -, *, div
+    Reciben integer e integer. Producen integer.
+
+  and, or
+    Reciben boolean y boolean. Producen boolean.
+
+  not
+    Recibe boolean. Produce boolean.
+
+  <, <=, >, >=
+    Reciben integer e integer. Producen boolean.
+
+  =, <>
+    Reciben dos valores del mismo tipo. Producen boolean.
+
+factor() busca los identificadores en la tabla. Solo variables y parametros se
+pueden leer directamente. Una funcion sin parametros tambien puede producir su
+tipo usando solamente su nombre.
+
+
+12. COMO SE COMPRUEBA UNA LLAMADA
+===============================================================================
+
+Para esta declaracion:
+
+  procedure mostrar(valor: integer; activo: boolean);
+
+y esta llamada:
+
+  mostrar(numero, true)
+
+comprobar_llamada() realiza lo siguiente:
+
+  1. Busca mostrar como rutina visible.
+  2. Verifica que sea PROCEDIMIENTO porque aparece como comando.
+  3. Compara 2 argumentos recibidos con 2 parametros esperados.
+  4. Compara numero (integer) con valor (integer).
+  5. Compara true (boolean) con activo (boolean).
+
+La llamada es correcta.
+
+Si la llamada fuera:
+
+  mostrar(true, false)
+
+el primer parametro espera integer, pero true es boolean. Se informa:
+
+  el argumento 1 de 'mostrar' debe ser integer
+
+Una funcion aparece dentro de una expresion:
+
+  numero := duplicar(numero)
+
+En ese contexto, comprobar_llamada() exige categoria FUNCION y devuelve el tipo
+de retorno para que la expresion pueda continuar.
+
+
+13. PARA QUE SIRVE DESCONOCIDO
+===============================================================================
+
+Considere:
+
+  resultado := inexistente + true
+
+Al buscar inexistente, el analizador informa:
+
+  identificador 'inexistente' no declarado
+
+Como no conoce su tipo, factor() devuelve DESCONOCIDO. Los metodos superiores
+propagan ese valor y evitan agregar errores que podrian ser consecuencia del
+primero. DESCONOCIDO permite terminar el recorrido y encontrar errores en otras
+lineas sin llenar el reporte con mensajes repetidos o poco confiables.
+
+
+14. RECORRIDO DE prueba_semantica_error.pas
+===============================================================================
+
+A continuacion se explica cada uno de sus 10 errores.
+
+ERROR 1 - DECLARACION DUPLICADA
+
+  numero: integer;
+  Numero: boolean;
+
+casefold() transforma ambos nombres en la clave "numero". Como pertenecen al
+mismo ambiente, el segundo se considera duplicado.
+
+ERROR 2 - FUNCION SIN RESULTADO
+
+  function duplicar(n: integer): integer;
+  begin
+    n := n + 1
+  end;
+
+Se modifica n, pero nunca aparece una asignacion a duplicar. La marca
+resultado_asignado permanece en False.
+
+ERROR 3 - IDENTIFICADOR NO DECLARADO
+
+  desconocida := 10;
+
+tipo_destino() busca desconocida desde el ambiente actual hasta el global. No
+encuentra ninguna declaracion.
+
+ERROR 4 - ASIGNACION ENTRE TIPOS DIFERENTES
+
+  numero := true;
+
+numero es integer y true es boolean.
+
+ERROR 5 - OPERACION Y ASIGNACION INCORRECTAS
+
+  bandera := numero + 5;
+
+En la tabla se conserva la primera declaracion valida de numero, que es integer.
+numero + 5 produce integer, pero bandera es boolean. La asignacion no coincide.
+
+ERROR 6 - CONDICION DE IF NO BOOLEANA
+
+  if numero then
+
+numero es integer y una condicion debe ser boolean.
+
+ERROR 7 - CANTIDAD INCORRECTA DE ARGUMENTOS
+
+  mostrar(numero);
+
+mostrar espera dos argumentos y solamente recibe uno.
+
+ERROR 8 - TIPO INCORRECTO DE ARGUMENTO
+
+  mostrar(true, false);
+
+El primer parametro de mostrar debe ser integer, pero true es boolean.
+
+ERROR 9 - FUNCION USADA COMO PROCEDIMIENTO
+
+  duplicar(numero);
+
+La llamada aparece como un comando independiente. En ese lugar se espera un
+procedimiento, pero duplicar fue declarada como funcion.
+
+ERROR 10 - PROCEDIMIENTO USADO COMO FUNCION
+
+  numero := mostrar(numero, true)
+
+mostrar aparece dentro de una expresion y deberia producir un valor, pero es un
+procedimiento de tipo void.
+
+
+15. MAPA DE METODOS DE analizadorSemantico.py
+===============================================================================
+
+analizar()
+  Procesa el programa completo y devuelve ResultadoSemantico.
+
+bloque()
+  Procesa variables, rutinas y el begin/end de un ambiente.
+
+declaraciones_rutinas()
+  Procesa todas las funciones y procedimientos consecutivos.
+
+declaracion_variables()
+  Inserta uno o varios nombres con un mismo tipo.
+
+declaracion_rutina()
+  Registra una firma, abre su ambiente, inserta parametros y analiza el cuerpo.
+
+parametros_opcionales()
+  Construye la lista ordenada de parametros formales.
+
+lista_identificadores()
+  Lee nombres separados por comas.
+
+tipo()
+  Convierte INTEGER o BOOLEAN en el tipo interno correspondiente.
+
+comando_compuesto()
+  Procesa una secuencia de comandos entre begin y end.
+
+comando()
+  Decide la clase de comando y aplica sus reglas semanticas.
+
+expresion(), expresion_simple(), termino(), factor()
+  Recorren expresiones respetando precedencia y devuelven su tipo.
+
+argumentos()
+  Obtiene el tipo y la posicion de cada argumento real.
+
+comprobar_llamada()
+  Valida categoria, cantidad de argumentos y tipos de una llamada.
+
+tipo_destino()
+  Comprueba que un nombre pueda recibir una asignacion.
+
+resolver()
+  Busca un identificador y genera error si no existe.
+
+declarar()
+  Inserta un simbolo y convierte duplicados en diagnosticos.
+
+requerir_operandos()
+  Exige que dos operandos tengan el tipo requerido por un operador.
+
+requerir_tipo()
+  Exige un tipo concreto, por ejemplo boolean para if.
+
+comprobar_compatibles()
+  Exige que dos tipos sean iguales.
+
+abrir_ambito() y cerrar_ambito()
+  Mueven ambiente_actual al entrar o salir de programas y rutinas.
+
+actual, anterior, aceptar(), consumir() y avanzar()
+  Controlan el cursor que recorre la lista de tokens.
+
+error()
+  Crea un DiagnosticoError semantico sin duplicar mensajes iguales.
+
+
+16. RESUMEN MENTAL
+===============================================================================
+
+La manera mas sencilla de entender el analizador es imaginar que lee el programa
+de izquierda a derecha con una libreta de declaraciones.
+
+Cuando encuentra una declaracion:
+  La anota en la tabla del ambiente actual.
+
+Cuando entra a una funcion o procedimiento:
+  Abre una nueva tabla conectada con la anterior.
+
+Cuando encuentra un nombre usado:
+  Lo busca primero en la tabla actual y luego en las exteriores.
+
+Cuando encuentra una expresion:
+  Calcula su tipo desde los factores hasta los operadores de menor precedencia.
+
+Cuando encuentra una asignacion o llamada:
+  Compara los tipos calculados con los tipos declarados.
+
+Cuando encuentra un problema:
+  Guarda linea, columna y explicacion, pero intenta continuar.
+
+Al llegar al punto final:
+  Devuelve todos los diagnosticos y el arbol completo de tablas de simbolos.
