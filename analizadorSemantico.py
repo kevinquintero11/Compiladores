@@ -1,13 +1,11 @@
-# Analisis semantico y construccion de tablas de simbolos para mini-Pascal.
+# Este archivo revisa que el programa mini-Pascal tenga sentido.
 #
-# Esta fase se ejecuta unicamente despues de que el analizador sintactico acepta
-# la entrada. Por esa razon no intenta recuperarse de errores de gramatica ni
-# construye un AST: recorre otra vez la secuencia de tokens siguiendo las mismas
-# producciones de la gramatica. Durante ese recorrido registra identificadores,
-# resuelve nombres, infiere tipos, valida llamadas y produce diagnosticos.
+# Se ejecuta despues del analizador sintactico, cuando ya sabemos que el programa
+# esta bien escrito. Aca se vuelve a leer pieza por pieza para revisar cosas
+# como: variables sin declarar, tipos que no coinciden o llamadas mal hechas.
 #
-# Cuando el tipo de una subexpresion no puede determinarse, usa DESCONOCIDO para
-# continuar el recorrido sin generar errores derivados del mismo problema.
+# Si no se puede saber el tipo de algo por un error anterior, se usa DESCONOCIDO.
+# Asi se puede seguir revisando sin mostrar muchos errores por la misma causa.
 
 from __future__ import annotations
 
@@ -17,17 +15,16 @@ from analizadorSintactico import DiagnosticoError, Token, TokenType
 from tablaSimbolos import SimboloDuplicadoError, TablaSimbolos
 
 
-# Tipos internos. Son cadenas porque tambien se guardan directamente en cada
-# entrada de la tabla de simbolos. VOID identifica rutinas sin valor de retorno
-# y DESCONOCIDO representa un error previo, no un tipo del lenguaje Pascal.
+# Estos son los tipos que vamos a manejar. VOID significa que no se devuelve
+# ningun valor. DESCONOCIDO se usa cuando hubo un error y no sabemos el tipo.
 INTEGER = "integer"
 BOOLEAN = "boolean"
 VOID = "void"
 DESCONOCIDO = "desconocido"
 
-# Categorias posibles de una entrada de la tabla. RESULTADO_FUNCION modela la
-# variable implicita de Pascal que tiene el mismo nombre que la funcion y a la
-# cual se asigna el valor que esta devuelve.
+# Ademas del tipo, guardamos que clase de nombre es: programa, variable,
+# parametro, procedimiento o funcion. RESULTADO_FUNCION representa la asignacion
+# al nombre de una funcion, por ejemplo: sumar := a + b.
 PROGRAMA = "programa"
 VARIABLE = "variable"
 PARAMETRO = "parametro"
@@ -38,22 +35,18 @@ RESULTADO_FUNCION = "resultado_funcion"
 
 @dataclass
 class ResultadoSemantico:
-    # Resultado publico de una ejecucion del analizador.
-    # diagnostics contiene los errores en orden de aparicion. tabla_global es
-    # la raiz del arbol de ambientes y se devuelve aunque existan errores.
+    # Aca guardamos lo que queda al terminar: la lista de errores y la tabla con
+    # todos los nombres que se encontraron en el programa.
     diagnostics: list[DiagnosticoError]
     tabla_global: TablaSimbolos
 
 
 class AnalizadorSemantico:
-    # Comprueba nombres, categorias y tipos de una entrada valida. current es el
-    # cursor sobre tokens. ambiente_actual cambia al entrar o salir del programa
-    # y de cada rutina, lo que permite aplicar alcance estatico.
-    # Operadores agrupados por nivel de precedencia. Estos conjuntos permiten
-    # que los metodos de expresiones reflejen directamente la gramatica:
-    # expresion -> expresion_simple [relacion expresion_simple]
-    # expresion_simple -> termino {aditivo termino}
-    # termino -> factor {multiplicativo factor}
+    # Esta clase hace toda la revision. current marca por que parte de la lista
+    # vamos. ambiente_actual indica en que parte del programa estamos trabajando.
+
+    # Separamos los operadores en grupos para revisarlos en el orden correcto.
+    # Por ejemplo, una multiplicacion se revisa antes que una suma.
     RELACIONES = {
         TokenType.IGUAL,
         TokenType.DISTINTO,
@@ -66,8 +59,8 @@ class AnalizadorSemantico:
     MULTIPLICATIVOS = {TokenType.POR, TokenType.DIV, TokenType.AND}
 
     def __init__(self, tokens: list[Token]):
-        # La secuencia debe estar validada por el sintactico e incluir el token
-        # final. El recorrido siempre comienza en un ambiente global vacio.
+        # Guardamos todas las piezas del programa y empezamos desde la primera.
+        # Tambien preparamos una lista vacia de errores y la tabla principal.
         self.tokens = tokens
         self.current = 0
         self.diagnostics: list[DiagnosticoError] = []
@@ -76,13 +69,13 @@ class AnalizadorSemantico:
 
     @property
     def actual(self) -> Token:
-        # Consulta el token situado bajo el cursor sin consumirlo.
+        # Mira la pieza actual del programa sin avanzar a la siguiente.
         return self.tokens[self.current]
 
     def analizar(self) -> ResultadoSemantico:
-        # El nombre del programa vive en la tabla global, mientras que sus
-        # declaraciones y comandos viven en un ambiente hijo. El enlace entre
-        # ambos permite navegar luego todo el arbol desde tabla_global.
+        # Empezamos leyendo "program nombre;". Guardamos el nombre del programa,
+        # entramos en su espacio de trabajo, revisamos todo el contenido y al
+        # final devolvemos los errores junto con la tabla de nombres.
         self.consumir(TokenType.PROGRAM)
         nombre = self.consumir(TokenType.IDENTIFICADOR)
         programa = self.declarar(nombre, VOID, PROGRAMA)
@@ -94,9 +87,8 @@ class AnalizadorSemantico:
         return ResultadoSemantico(self.diagnostics, self.tabla_global)
 
     def bloque(self) -> None:
-        # Un bloque tiene una seccion var opcional, posibles rutinas anidadas y
-        # un comando compuesto begin/end. Los puntos y coma se consumen aqui
-        # para distinguir otro grupo de variables de la seccion siguiente.
+        # Un bloque puede tener variables y funciones o procedimientos. Despues
+        # de esas declaraciones siempre viene la parte encerrada en begin/end.
         if self.aceptar(TokenType.VAR):
             self.declaracion_variables()
             while self.aceptar(TokenType.PUNTO_Y_COMA):
@@ -108,7 +100,7 @@ class AnalizadorSemantico:
         self.comando_compuesto()
 
     def declaraciones_rutinas(self) -> None:
-        # Procesa recursivamente la lista de procedimientos y funciones.
+        # Mientras aparezcan funciones o procedimientos, los revisamos uno a uno.
         if self.actual.tipo not in {TokenType.PROCEDURE, TokenType.FUNCTION}:
             return
 
@@ -117,7 +109,7 @@ class AnalizadorSemantico:
         self.declaraciones_rutinas()
 
     def declaracion_variables(self) -> None:
-        # Declara un grupo de la forma: id {, id} : tipo.
+        # Lee algo como "a, b, c: integer" y guarda cada nombre por separado.
         nombres = self.lista_identificadores()
         self.consumir(TokenType.DOS_PUNTOS)
         tipo = self.tipo()
@@ -125,10 +117,10 @@ class AnalizadorSemantico:
             self.declarar(token, tipo, VARIABLE)
 
     def declaracion_rutina(self, es_funcion: bool) -> None:
-        # La firma se inserta primero en el ambiente exterior para que el cuerpo
-        # y las rutinas anidadas puedan encontrarla. En una funcion tambien se
-        # crea RESULTADO_FUNCION: la variable implicita a la que se asigna el
-        # valor devuelto. es_funcion distingue function de procedure.
+        # Primero guardamos el nombre y los parametros de la rutina. Luego
+        # entramos a revisar lo que hay dentro. Si es una funcion, tambien
+        # guardamos su nombre como el lugar donde se deja el resultado, por
+        # ejemplo: duplicar := n * 2.
         self.consumir(TokenType.FUNCTION if es_funcion else TokenType.PROCEDURE)
         nombre = self.consumir(TokenType.IDENTIFICADOR)
         parametros = self.parametros_opcionales()
@@ -141,8 +133,8 @@ class AnalizadorSemantico:
         simbolo = self.declarar(nombre, retorno, clase, parametros)
         self.consumir(TokenType.PUNTO_Y_COMA)
 
-        # Un simbolo duplicado no se inserta y ``simbolo`` sera None. Aun asi se
-        # abre el ambiente para poder analizar el cuerpo y descubrir mas errores.
+        # Aunque el nombre este repetido, revisamos el cuerpo igualmente para no
+        # perder otros errores que puedan estar dentro.
         self.abrir_ambito(nombre.lexema, simbolo)
         resultado_funcion = None
         if es_funcion:
@@ -166,9 +158,8 @@ class AnalizadorSemantico:
         self.cerrar_ambito()
 
     def parametros_opcionales(self) -> list[dict]:
-        # Cada parametro conserva nombre, tipo y posicion. Primero se construye
-        # la firma ordenada; los parametros se insertan en la tabla local despues
-        # de abrir el ambiente. La firma tambien se usa para validar llamadas.
+        # Lee los parametros que estan entre parentesis. De cada uno recordamos
+        # su nombre, tipo y lugar, manteniendo el orden en el que fue escrito.
         parametros: list[dict] = []
         if not self.aceptar(TokenType.PARENTESIS_ABRE):
             return parametros
@@ -191,22 +182,21 @@ class AnalizadorSemantico:
         return parametros
 
     def lista_identificadores(self) -> list[Token]:
-        # Consume una lista no vacia de nombres separados por comas.
+        # Junta una lista de nombres separados por comas, como "a, b, c".
         nombres = [self.consumir(TokenType.IDENTIFICADOR)]
         while self.aceptar(TokenType.COMA):
             nombres.append(self.consumir(TokenType.IDENTIFICADOR))
         return nombres
 
     def tipo(self) -> str:
-        # Convierte un tipo de la gramatica en su representacion interna.
+        # Lee si el tipo escrito es integer o boolean.
         if self.aceptar(TokenType.INTEGER):
             return INTEGER
         self.consumir(TokenType.BOOLEAN)
         return BOOLEAN
 
     def comando_compuesto(self) -> None:
-        # Analiza: begin comando {; comando} end. Se admite un punto y coma antes
-        # de end porque el sintactico ya comprobo que la secuencia fuera valida.
+        # Revisa todos los comandos que aparecen entre begin y end.
         self.consumir(TokenType.BEGIN)
         self.comando()
         while self.aceptar(TokenType.PUNTO_Y_COMA):
@@ -216,13 +206,13 @@ class AnalizadorSemantico:
         self.consumir(TokenType.END)
 
     def comando(self) -> None:
-        # Un identificador seguido por := inicia una asignacion; en caso
-        # contrario inicia una llamada a procedimiento. if y while requieren
-        # condiciones booleanas. read necesita un destino asignable y write
-        # recorre su argumento como cualquier otra expresion.
+        # Miramos como empieza el comando para saber que revisar. Puede ser una
+        # asignacion, una llamada, otro begin/end, un if, un while, read o write.
         if self.actual.tipo == TokenType.IDENTIFICADOR:
             nombre = self.consumir(TokenType.IDENTIFICADOR)
             if self.aceptar(TokenType.ASIGNACION):
+                # En "numero := 10" averiguamos el tipo de 10, buscamos el tipo
+                # de numero y comprobamos que los dos sean iguales.
                 tipo_expresion = self.expresion()
                 tipo_destino = self.tipo_destino(nombre)
                 self.comprobar_compatibles(
@@ -230,6 +220,7 @@ class AnalizadorSemantico:
                     "la asignacion requiere tipos iguales",
                 )
             else:
+                # Si no habia :=, el nombre corresponde a un procedimiento.
                 argumentos = self.argumentos()
                 self.comprobar_llamada(nombre, argumentos, espera_funcion=False)
             return
@@ -237,6 +228,7 @@ class AnalizadorSemantico:
             self.comando_compuesto()
             return
         if self.aceptar(TokenType.IF):
+            # Lo que viene despues de if debe dar true o false.
             condicion = self.expresion()
             self.requerir_tipo(condicion, BOOLEAN, self.anterior, "if requiere una condicion boolean")
             self.consumir(TokenType.THEN)
@@ -245,12 +237,15 @@ class AnalizadorSemantico:
                 self.comando()
             return
         if self.aceptar(TokenType.WHILE):
+            # La condicion del while tambien debe dar true o false.
             condicion = self.expresion()
             self.requerir_tipo(condicion, BOOLEAN, self.anterior, "while requiere una condicion boolean")
             self.consumir(TokenType.DO)
             self.comando()
             return
         if self.actual.tipo in {TokenType.READ, TokenType.WRITE}:
+            # read necesita una variable donde guardar un dato. write acepta una
+            # expresion y solamente hay que comprobar que este bien formada.
             lectura = self.aceptar(TokenType.READ)
             if not lectura:
                 self.consumir(TokenType.WRITE)
@@ -263,9 +258,9 @@ class AnalizadorSemantico:
             self.consumir(TokenType.PARENTESIS_CIERRA)
 
     def expresion(self) -> str:
-        # = y <> aceptan operandos del mismo tipo; las relaciones de orden exigen
-        # enteros. Una relacion valida produce boolean. Si un operando ya es
-        # DESCONOCIDO, se evita generar otro diagnostico por el mismo problema.
+        # Revisa comparaciones como a = b o numero < 10. Para = y <> los dos
+        # lados deben tener el mismo tipo. Para <, <=, > y >= deben ser enteros.
+        # El resultado de una comparacion siempre es true o false.
         izquierdo = self.expresion_simple()
         if self.actual.tipo in self.RELACIONES:
             operador = self.avanzar()
@@ -281,8 +276,8 @@ class AnalizadorSemantico:
         return izquierdo
 
     def expresion_simple(self) -> str:
-        # Los signos unarios, + y - trabajan con integer. or trabaja con boolean.
-        # El bucle aplica los operadores con asociatividad izquierda.
+        # Revisa sumas, restas y "or". + y - necesitan numeros enteros, mientras
+        # que "or" necesita valores true o false.
         signo = None
         if self.actual.tipo in {TokenType.MAS, TokenType.MENOS}:
             signo = self.avanzar()
@@ -301,8 +296,8 @@ class AnalizadorSemantico:
         return resultado
 
     def termino(self) -> str:
-        # * y div trabajan con integer; and trabaja con boolean. Al ejecutarse
-        # dentro de expresion_simple, este nivel tiene mayor precedencia.
+        # Revisa multiplicaciones, divisiones enteras y "and". Se hace antes que
+        # las sumas y restas para respetar el orden normal de las operaciones.
         resultado = self.factor()
         while self.actual.tipo in self.MULTIPLICATIVOS:
             operador = self.avanzar()
@@ -315,11 +310,9 @@ class AnalizadorSemantico:
         return resultado
 
     def factor(self) -> str:
-        # Un factor puede ser una variable, parametro, funcion, literal,
-        # expresion entre parentesis o negacion. Las funciones con parametros
-        # requieren llamada explicita; las que no tienen parametros pueden usarse
-        # por su nombre. El resultado implicito solo puede recibir asignaciones:
-        # no se lee como variable para evitar confundirlo con una llamada.
+        # Aca llegamos a las partes mas chicas de una cuenta: un nombre, un
+        # numero, true, false, algo entre parentesis o un "not". Si encontramos
+        # un nombre, buscamos que exista y vemos que tipo tiene.
         if self.actual.tipo == TokenType.IDENTIFICADOR:
             nombre = self.avanzar()
             if self.actual.tipo == TokenType.PARENTESIS_ABRE:
@@ -358,8 +351,8 @@ class AnalizadorSemantico:
         return BOOLEAN if resultado != DESCONOCIDO else resultado
 
     def argumentos(self) -> list[tuple[str, Token]]:
-        # Cada argumento guarda su tipo y el ultimo token de su expresion. Ese
-        # token proporciona la ubicacion para un posible error de tipos.
+        # Lee los valores enviados en una llamada. Guardamos el tipo de cada uno
+        # y su posicion para poder marcar el lugar si esta equivocado.
         self.consumir(TokenType.PARENTESIS_ABRE)
         if self.aceptar(TokenType.PARENTESIS_CIERRA):
             return []
@@ -375,12 +368,10 @@ class AnalizadorSemantico:
         argumentos: list[tuple[str, Token]],
         espera_funcion: bool,
     ) -> str:
-        # espera_funcion indica si la llamada aparece dentro de una expresion y
-        # debe devolver un valor. Primero se valida la categoria de la rutina y
-        # la cantidad de argumentos. Despues se comparan sus tipos por posicion.
-        # zip evita accesos fuera de rango si las cantidades son diferentes, pero
-        # permite revisar todos los pares disponibles. Ante un nombre o categoria
-        # incorrectos se devuelve DESCONOCIDO para continuar sin errores en cadena.
+        # Comprueba que el nombre exista y que se este usando de la manera
+        # correcta: una funcion dentro de una cuenta y un procedimiento como un
+        # comando. Tambien revisa cuantos valores se enviaron y si cada uno tiene
+        # el tipo que se esperaba.
         simbolo = self.ambiente_actual.buscar_rutina(nombre.lexema)
         if simbolo is None:
             encontrado = self.ambiente_actual.buscar(nombre.lexema)
@@ -410,9 +401,9 @@ class AnalizadorSemantico:
         return simbolo["tipo"]
 
     def tipo_destino(self, nombre: Token) -> str:
-        # Variables, parametros y resultados de funcion pueden recibir valores.
-        # Asignar al resultado tambien marca resultado_asignado, que se revisa al
-        # cerrar la funcion. Las demas categorias producen un diagnostico.
+        # Comprueba que el nombre pueda recibir un valor. Esto se permite para
+        # variables, parametros y el nombre de la funcion donde se deja el
+        # resultado. No se puede asignar un valor a un programa o procedimiento.
         simbolo = self.ambiente_actual.buscar(nombre.lexema)
         if simbolo is not None and simbolo["categoria"] in {
             VARIABLE,
@@ -430,17 +421,17 @@ class AnalizadorSemantico:
         return DESCONOCIDO
 
     def resolver(self, token: Token) -> dict | None:
-        # Busca un identificador visible e informa si no fue declarado.
+        # Busca el nombre en las tablas disponibles. Si no aparece, no fue
+        # declarado y se agrega el error correspondiente.
         simbolo = self.ambiente_actual.buscar(token.lexema)
         if simbolo is None:
             self.error(token, f"identificador '{token.lexema}' no declarado")
         return simbolo
 
     def declarar(self, token: Token, tipo: str, categoria: str, parametros=None) -> dict | None:
-        # Inserta una declaracion usando los datos y la posicion de token.
-        # Ademas de duplicados locales, impide reutilizar el nombre del programa
-        # para una variable global o rutina. Si hay conflicto devuelve None en
-        # vez de interrumpir el recorrido, para poder descubrir mas errores.
+        # Guarda un nombre nuevo en la tabla. Si ya estaba usado en el mismo
+        # lugar, agrega un error con la posicion de la primera declaracion. Luego
+        # sigue revisando el programa para encontrar los demas problemas.
         conflictos_con_programa = {
             VARIABLE: "variable global",
             PROCEDIMIENTO: "procedimiento",
@@ -475,8 +466,8 @@ class AnalizadorSemantico:
     def requerir_operandos(
         self, izquierdo: str, derecho: str, esperado: str, operador: Token,
     ) -> bool:
-        # Comprueba ambos operandos. Si uno es DESCONOCIDO devuelve False sin
-        # repetir el error anterior; si son conocidos pero incorrectos, informa.
+        # Revisa que los dos lados de una operacion tengan el tipo necesario. Si
+        # uno ya tenia un error, no mostramos otro mensaje por la misma causa.
         if DESCONOCIDO in {izquierdo, derecho}:
             return False
         if izquierdo != esperado or derecho != esperado:
@@ -485,20 +476,20 @@ class AnalizadorSemantico:
         return True
 
     def requerir_tipo(self, actual: str, esperado: str, token: Token, detalle: str) -> None:
-        # Informa si un valor conocido no tiene el tipo puntual requerido.
+        # Comprueba que algo tenga el tipo que se necesita en ese lugar.
         if actual not in {esperado, DESCONOCIDO}:
             self.error(token, detalle)
 
     def comprobar_compatibles(
         self, esperado: str, actual: str, token: Token, detalle: str,
     ) -> None:
-        # Exige tipos iguales, salvo que un error previo haya dejado uno desconocido.
+        # Compara dos tipos. Si son diferentes, agrega el error recibido.
         if DESCONOCIDO not in {esperado, actual} and esperado != actual:
             self.error(token, detalle)
 
     def abrir_ambito(self, nombre: str, propietario: dict | None) -> None:
-        # Crea un ambiente hijo con una ruta normalizada. El enlace guardado en
-        # propietario permite navegar desde el simbolo hacia su tabla local.
+        # Al entrar a un programa, funcion o procedimiento, creamos una tabla
+        # nueva para sus propios nombres y recordamos de donde venimos.
         ruta = f"{self.ambiente_actual.nombre}.{nombre.casefold()}"
         nuevo_ambiente = TablaSimbolos(ruta, self.ambiente_actual)
         self.ambiente_actual = nuevo_ambiente
@@ -506,44 +497,44 @@ class AnalizadorSemantico:
             propietario["ambito_local"] = nuevo_ambiente
 
     def cerrar_ambito(self) -> None:
-        # Regresa al ambiente exterior sin sobrepasar la tabla global.
+        # Al terminar ese bloque, volvemos a la tabla de afuera.
         if self.ambiente_actual.anterior is not None:
             self.ambiente_actual = self.ambiente_actual.anterior
 
     @property
     def anterior(self) -> Token:
-        # Consulta el ultimo token consumido por el recorrido.
+        # Devuelve la ultima pieza que acabamos de leer.
         return self.tokens[self.current - 1]
 
     def aceptar(self, tipo: TokenType) -> bool:
-        # Consume el tipo esperado solo si coincide con el token actual.
+        # Si la pieza actual es la que buscamos, la toma y avanza. Si no, deja
+        # todo como estaba. Sirve para partes opcionales del programa.
         if self.actual.tipo != tipo:
             return False
         self.avanzar()
         return True
 
     def consumir(self, tipo: TokenType) -> Token:
-        # Consume obligatoriamente el tipo indicado. Como el parser ya valido la
-        # secuencia, una discrepancia seria un error interno y no un error del
-        # programa fuente; por eso se lanza AssertionError.
+        # Toma obligatoriamente la pieza esperada. Si aparece otra cosa, significa
+        # que hay un problema interno porque el sintactico ya habia revisado esto.
         if self.actual.tipo != tipo:
             raise AssertionError(f"se esperaba {tipo}, se encontro {self.actual.tipo}")
         return self.avanzar()
 
     def avanzar(self) -> Token:
-        # Devuelve el token actual y mueve el cursor a la posicion siguiente.
+        # Toma la pieza actual y pasa a la siguiente.
         token = self.actual
         self.current += 1
         return token
 
     def error(self, token: Token, detalle: str) -> None:
-        # Registra linea, columna y detalle, evitando diagnosticos duplicados.
+        # Guarda el mensaje junto con su linea y columna, sin repetirlo.
         diagnostico = DiagnosticoError("semantico", token.linea, token.columna, detalle)
         if diagnostico not in self.diagnostics:
             self.diagnostics.append(diagnostico)
 
 
 def analizar_semantica(tokens: list[Token]) -> ResultadoSemantico:
-    # Punto de entrada usado por analizadorSintactico. Recibe tokens ya validados
-    # y devuelve los diagnosticos junto con la raiz de las tablas construidas.
+    # Es la entrada: recibe lo que preparo el sintactico,
+    # ejecuta toda la revision y entrega el resultado.
     return AnalizadorSemantico(tokens).analizar()
