@@ -74,7 +74,7 @@ class AnalizadorSemantico:
 
     def analizar(self) -> ResultadoSemantico:
         # Empezamos leyendo "program nombre;". Guardamos el nombre del programa,
-        # entramos en su espacio de trabajo, revisamos todo el contenido y al
+        # entramos en el ambito, revisamos todo el contenido y al
         # final devolvemos los errores junto con la tabla de nombres.
         self.consumir(TokenType.PROGRAM)
         nombre = self.consumir(TokenType.IDENTIFICADOR)
