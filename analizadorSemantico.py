@@ -1,7 +1,7 @@
 # Este archivo revisa que el programa mini-Pascal tenga sentido.
 #
 # Se ejecuta despues del analizador sintactico, cuando ya sabemos que el programa
-# esta bien escrito. Aca se vuelve a leer pieza por pieza para revisar cosas
+# esta bien escrito. Aca se vuelve a leer token por token para revisar cosas
 # como: variables sin declarar, tipos que no coinciden o llamadas mal hechas.
 #
 # Si no se puede saber el tipo de algo por un error anterior, se usa DESCONOCIDO.
@@ -59,7 +59,7 @@ class AnalizadorSemantico:
     MULTIPLICATIVOS = {TokenType.POR, TokenType.DIV, TokenType.AND}
 
     def __init__(self, tokens: list[Token]):
-        # Guardamos todas las piezas del programa y empezamos desde la primera.
+        # Guardamos todos los tokens del programa y empezamos desde el primero.
         # Tambien preparamos una lista vacia de errores y la tabla principal.
         self.tokens = tokens
         self.current = 0
@@ -69,7 +69,7 @@ class AnalizadorSemantico:
 
     @property
     def actual(self) -> Token:
-        # Mira la pieza actual del programa sin avanzar a la siguiente.
+        # Mira el token actual del programa sin avanzar al siguiente.
         return self.tokens[self.current]
 
     def analizar(self) -> ResultadoSemantico:
@@ -503,11 +503,11 @@ class AnalizadorSemantico:
 
     @property
     def anterior(self) -> Token:
-        # Devuelve la ultima pieza que acabamos de leer.
+        # Devuelve el ultimo token que acabamos de leer.
         return self.tokens[self.current - 1]
 
     def aceptar(self, tipo: TokenType) -> bool:
-        # Si la pieza actual es la que buscamos, la toma y avanza. Si no, deja
+        # Si el token actual es el que buscamos, lo toma y avanza. Si no, deja
         # todo como estaba. Sirve para partes opcionales del programa.
         if self.actual.tipo != tipo:
             return False
@@ -515,14 +515,14 @@ class AnalizadorSemantico:
         return True
 
     def consumir(self, tipo: TokenType) -> Token:
-        # Toma obligatoriamente la pieza esperada. Si aparece otra cosa, significa
+        # Toma obligatoriamente el token esperado. Si aparece otra cosa, significa
         # que hay un problema interno porque el sintactico ya habia revisado esto.
         if self.actual.tipo != tipo:
             raise AssertionError(f"se esperaba {tipo}, se encontro {self.actual.tipo}")
         return self.avanzar()
 
     def avanzar(self) -> Token:
-        # Toma la pieza actual y pasa a la siguiente.
+        # Toma el token actual y pasa al siguiente.
         token = self.actual
         self.current += 1
         return token
